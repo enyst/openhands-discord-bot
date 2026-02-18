@@ -5,7 +5,7 @@ from typing import Optional
 
 import aiohttp
 
-log = logging.getLogger("context7")
+log = logging.getLogger("context7.client")
 
 BASE_URL = "https://context7.com/api/v2"
 MAX_RETRIES = 3
@@ -37,15 +37,29 @@ class Context7Client:
         url = f"{BASE_URL}{path}"
 
         for attempt in range(MAX_RETRIES):
+            t0 = time.perf_counter()
+            log.debug("GET %s params=%s (attempt %d)", url, params, attempt + 1)
             resp = await session.get(url, params=params)
+            elapsed_ms = (time.perf_counter() - t0) * 1000
 
             if resp.status == 429:
                 wait = 2 ** attempt
-                log.warning("Rate-limited by Context7, retrying in %ds…", wait)
+                log.warning(
+                    "Rate-limited (429) on %s, retry in %ds (%.0fms)",
+                    path, wait, elapsed_ms,
+                )
                 await asyncio.sleep(wait)
                 continue
 
-            resp.raise_for_status()
+            if resp.status >= 400:
+                body = await resp.text()
+                log.error(
+                    "HTTP %d on %s (%.0fms): %s",
+                    resp.status, path, elapsed_ms, body[:300],
+                )
+                resp.raise_for_status()
+
+            log.info("GET %s — %d (%.0fms)", path, resp.status, elapsed_ms)
             return resp
 
         raise RuntimeError("Context7 rate limit exceeded after retries")
@@ -72,7 +86,22 @@ class Context7Client:
         )
         if response_type == "txt":
             return await resp.text()
-        return await resp.json()
+
+        data = await resp.json()
+        if isinstance(data, list):
+            return data
+
+        log.debug("get_context returned dict with keys: %s", list(data.keys()))
+        for key in ("results", "snippets", "context", "data", "items"):
+            if key in data and isinstance(data[key], list):
+                return data[key]
+
+        # Last resort: if the dict itself looks like a single snippet, wrap it
+        if "content" in data or "title" in data:
+            return [data]
+
+        log.warning("Could not extract snippets from response: %s", str(data)[:500])
+        return []
 
     async def close(self):
         if self._session and not self._session.closed:
