@@ -46,15 +46,13 @@ DEFAULT_LIBRARY = "/websites/all-hands_dev"
 
 LIBRARY_CHOICES = [
     app_commands.Choice(name="Official Docs (default)", value="/websites/all-hands_dev"),
-    app_commands.Choice(name="SDK Docs", value="/websites/openhands_dev_sdk"),
-    app_commands.Choice(name="GitHub Repo", value="/all-hands-ai/openhands"),
+    app_commands.Choice(name="GitHub Repo", value="/openhands/openhands"),
     app_commands.Choice(name="All sources", value="__all__"),
 ]
 
 ALL_LIBRARY_IDS = [
     "/websites/all-hands_dev",
-    "/websites/openhands_dev_sdk",
-    "/all-hands-ai/openhands",
+    "/openhands/openhands",
 ]
 
 intents = discord.Intents.default()
